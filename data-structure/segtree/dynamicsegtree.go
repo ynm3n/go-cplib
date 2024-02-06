@@ -93,9 +93,8 @@ func (sg *DynamicSegmentTree[T]) Get(i int) T {
 }
 
 func (sg *DynamicSegmentTree[T]) Product(l, r int) T {
-	sg.checkInRange(l)
-	sg.checkInRange(r - 1)
-	if sg.root == nil {
+	sg.checkInRangeLR(l, r)
+	if sg.root == nil || l == r {
 		return sg.e()
 	}
 	return sg.product(sg.root, l, r, sg.l, sg.r)
@@ -134,7 +133,13 @@ func (sg *DynamicSegmentTree[T]) subtreeVal(n *node[T]) T {
 
 func (sg *DynamicSegmentTree[T]) checkInRange(i int) {
 	if i < sg.l || sg.r <= i {
-		panic(fmt.Sprintf("DynamicSegmentTree: index out of range: l=%d, r=%d, i=%d", sg.l, sg.r, i))
+		panic(fmt.Errorf("DynamicSegmentTree: index out of range: l=%d, r=%d, i=%d", sg.l, sg.r, i))
+	}
+}
+
+func (sg *DynamicSegmentTree[T]) checkInRangeLR(argL, argR int) {
+	if argL < sg.l || sg.r < argR {
+		panic(fmt.Errorf("DynamicSegmentTree: index out of range: l=%d, r=%d, argL=%d, argR=%d", sg.l, sg.r, argL, argR))
 	}
 }
 
