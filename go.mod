@@ -1,3 +1,3 @@
 module github.com/ynm3n/go-cplib
 
-go 1.21
+go 1.22.0
