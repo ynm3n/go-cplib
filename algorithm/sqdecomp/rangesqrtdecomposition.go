@@ -55,14 +55,20 @@ func NewRangeSqrtDecompositionWith[S, F any](
 	data = slices.Clone(data)
 	n := len(data)
 	blockSize := int(math.Round(math.Sqrt(float64(n))))
-	result := make([]S, (n+blockSize-1)/blockSize)
-	lazyApply := make([]F, (n+blockSize-1)/blockSize)
-	for i := 0; i < (n+blockSize-1)/blockSize; i++ {
-		result[i] = e()
-		lazyApply[i] = id()
-	}
 	if mappingBlockFunc == nil {
 		mappingBlockFunc = mappingFunc
+	}
+
+	var result []S
+	if productFunc != nil {
+		result = make([]S, (n+blockSize-1)/blockSize)
+		for i := 0; i < (n+blockSize-1)/blockSize; i++ {
+			result[i] = e()
+		}
+	}
+	lazyApply := make([]F, (n+blockSize-1)/blockSize)
+	for i := 0; i < (n+blockSize-1)/blockSize; i++ {
+		lazyApply[i] = id()
 	}
 
 	sd := &RangeSqrtDecomposition[S, F]{
@@ -103,22 +109,32 @@ func (sd *RangeSqrtDecomposition[S, F]) Set(i int, x S) {
 
 func (sd *RangeSqrtDecomposition[S, F]) Product(l, r int) S {
 	lb, rb := sd.nowBlock(l), sd.nowBlock(r-1)
-	lMax, rMin := (lb+1)*sd.blockSize, rb*sd.blockSize
-	sd.evalLazy(lb)
-	sd.evalLazy(rb)
-
 	res := sd.e()
-	for i, lEnd := l, min(lMax, r); i < lEnd; i++ {
-		res = sd.productFunc(res, sd.data[i])
+	if lb == rb {
+		sd.evalLazy(lb)
+		for i := l; i < r; i++ {
+			res = sd.productFunc(res, sd.data[i])
+		}
+		return res
 	}
-	for b := lb + 1; b < rb; b++ {
+
+	lCeil := (l + sd.blockSize - 1) / sd.blockSize
+	rFloor := r / sd.blockSize
+	if lMax := lCeil * sd.blockSize; l < lMax {
+		sd.evalLazy(lb)
+		for i := l; i < lMax; i++ {
+			res = sd.productFunc(res, sd.data[i])
+		}
+	}
+	for b := lCeil; b < rFloor; b++ {
 		if sd.isLazy[b] {
 			res = sd.productFunc(res, sd.mappingBlockFunc(sd.lazyApply[b], sd.result[b]))
 		} else {
 			res = sd.productFunc(res, sd.result[b])
 		}
 	}
-	if lb != rb {
+	if rMin := rFloor * sd.blockSize; rMin < r {
+		sd.evalLazy(rb)
 		for i := rMin; i < r; i++ {
 			res = sd.productFunc(res, sd.data[i])
 		}
@@ -135,19 +151,30 @@ func (sd *RangeSqrtDecomposition[S, F]) Apply(i int, f F) {
 
 func (sd *RangeSqrtDecomposition[S, F]) ApplyRange(l, r int, f F) {
 	lb, rb := sd.nowBlock(l), sd.nowBlock(r-1)
-	lMax, rMin := (lb+1)*sd.blockSize, rb*sd.blockSize
-	sd.evalLazy(lb)
-	sd.evalLazy(rb)
-
-	for i, lEnd := l, min(lMax, r); i < lEnd; i++ {
-		sd.data[i] = sd.mappingFunc(f, sd.data[i])
+	if lb == rb {
+		sd.evalLazy(lb)
+		for i := l; i < r; i++ {
+			sd.data[i] = sd.mappingFunc(f, sd.data[i])
+		}
+		sd.calcResult(lb)
+		return
 	}
-	sd.calcResult(lb)
-	for b := lb + 1; b < rb; b++ {
+
+	lCeil := (l + sd.blockSize - 1) / sd.blockSize
+	rFloor := r / sd.blockSize
+	if lMax := lCeil * sd.blockSize; l < lMax {
+		sd.evalLazy(lb)
+		for i := l; i < lMax; i++ {
+			sd.data[i] = sd.mappingFunc(f, sd.data[i])
+		}
+		sd.calcResult(lb)
+	}
+	for b := lCeil; b < rFloor; b++ {
 		sd.lazyApply[b] = sd.compositionFunc(sd.lazyApply[b], f)
 		sd.isLazy[b] = true
 	}
-	if lb != rb {
+	if rMin := rFloor * sd.blockSize; rMin < r {
+		sd.evalLazy(rb)
 		for i := rMin; i < r; i++ {
 			sd.data[i] = sd.mappingFunc(f, sd.data[i])
 		}
@@ -175,6 +202,9 @@ func (sd *RangeSqrtDecomposition[S, F]) evalLazy(b int) {
 }
 
 func (sd *RangeSqrtDecomposition[S, F]) calcResult(b int) {
+	if sd.productFunc == nil {
+		return
+	}
 	l := b * sd.blockSize
 	r := min(l+sd.blockSize, sd.n)
 	sd.result[b] = sd.e()
