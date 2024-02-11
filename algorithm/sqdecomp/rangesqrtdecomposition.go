@@ -15,6 +15,7 @@ type RangeSqrtDecomposition[S, F any] struct {
 
 	data      []S
 	result    []S
+	modified  []bool
 	lazyApply []F
 	isLazy    []bool
 
@@ -77,6 +78,7 @@ func NewRangeSqrtDecompositionWith[S, F any](
 
 		data:      data,
 		result:    result,
+		modified:  make([]bool, len(result)),
 		lazyApply: lazyApply,
 		isLazy:    make([]bool, len(lazyApply)),
 
@@ -104,7 +106,7 @@ func (sd *RangeSqrtDecomposition[S, F]) Set(i int, x S) {
 	b := sd.nowBlock(i)
 	sd.evalLazy(b)
 	sd.data[i] = x
-	sd.calcResult(b)
+	sd.flagModified(b)
 }
 
 func (sd *RangeSqrtDecomposition[S, F]) Product(l, r int) S {
@@ -127,6 +129,10 @@ func (sd *RangeSqrtDecomposition[S, F]) Product(l, r int) S {
 		}
 	}
 	for b := lCeil; b < rFloor; b++ {
+		if sd.modified[b] {
+			sd.calcResult(b)
+			sd.modified[b] = false
+		}
 		if sd.isLazy[b] {
 			res = sd.product(res, sd.mappingBlock(sd.lazyApply[b], sd.result[b]))
 		} else {
@@ -146,7 +152,7 @@ func (sd *RangeSqrtDecomposition[S, F]) Apply(i int, f F) {
 	b := sd.nowBlock(i)
 	sd.evalLazy(b)
 	sd.data[i] = sd.mapping(f, sd.data[i])
-	sd.calcResult(b)
+	sd.flagModified(b)
 }
 
 func (sd *RangeSqrtDecomposition[S, F]) ApplyRange(l, r int, f F) {
@@ -156,7 +162,7 @@ func (sd *RangeSqrtDecomposition[S, F]) ApplyRange(l, r int, f F) {
 		for i := l; i < r; i++ {
 			sd.data[i] = sd.mapping(f, sd.data[i])
 		}
-		sd.calcResult(lb)
+		sd.flagModified(lb)
 		return
 	}
 
@@ -167,7 +173,7 @@ func (sd *RangeSqrtDecomposition[S, F]) ApplyRange(l, r int, f F) {
 		for i := l; i < lMax; i++ {
 			sd.data[i] = sd.mapping(f, sd.data[i])
 		}
-		sd.calcResult(lb)
+		sd.flagModified(lb)
 	}
 	for b := lCeil; b < rFloor; b++ {
 		sd.lazyApply[b] = sd.composition(sd.lazyApply[b], f)
@@ -178,7 +184,7 @@ func (sd *RangeSqrtDecomposition[S, F]) ApplyRange(l, r int, f F) {
 		for i := rMin; i < r; i++ {
 			sd.data[i] = sd.mapping(f, sd.data[i])
 		}
-		sd.calcResult(rb)
+		sd.flagModified(rb)
 	}
 }
 
@@ -198,7 +204,7 @@ func (sd *RangeSqrtDecomposition[S, F]) evalLazy(b int) {
 	}
 	sd.isLazy[b] = false
 	sd.lazyApply[b] = sd.id()
-	sd.calcResult(b)
+	sd.flagModified(b)
 }
 
 func (sd *RangeSqrtDecomposition[S, F]) calcResult(b int) {
@@ -211,4 +217,11 @@ func (sd *RangeSqrtDecomposition[S, F]) calcResult(b int) {
 	for i := l; i < r; i++ {
 		sd.result[b] = sd.product(sd.result[b], sd.data[i])
 	}
+}
+
+func (sd *RangeSqrtDecomposition[S, F]) flagModified(b int) {
+	if sd.product == nil {
+		return
+	}
+	sd.modified[b] = true
 }
