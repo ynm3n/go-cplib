@@ -78,7 +78,7 @@ func NewRangeSqrtDecompositionWith[S, F any](
 		data:      data,
 		result:    result,
 		lazyApply: lazyApply,
-		isLazy:    make([]bool, (n+block-1)/block),
+		isLazy:    make([]bool, len(lazyApply)),
 
 		e:       e,
 		product: product,
