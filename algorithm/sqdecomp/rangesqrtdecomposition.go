@@ -10,8 +10,8 @@ import (
 // https://kujira16.hateblo.jp/entry/2016/12/15/000000
 // https://betrue12.hateblo.jp/entry/2020/09/22/194541
 type RangeSqrtDecomposition[S, F any] struct {
-	n         int
-	blockSize int
+	n     int // data len
+	block int // block len
 
 	data      []S
 	result    []S
@@ -54,31 +54,31 @@ func NewRangeSqrtDecompositionWith[S, F any](
 ) *RangeSqrtDecomposition[S, F] {
 	data = slices.Clone(data)
 	n := len(data)
-	blockSize := int(math.Round(math.Sqrt(float64(n))))
+	block := int(math.Round(math.Sqrt(float64(n))))
 	if mappingBlockFunc == nil {
 		mappingBlockFunc = mappingFunc
 	}
 
 	var result []S
 	if productFunc != nil {
-		result = make([]S, (n+blockSize-1)/blockSize)
-		for i := 0; i < (n+blockSize-1)/blockSize; i++ {
+		result = make([]S, (n+block-1)/block)
+		for i := 0; i < (n+block-1)/block; i++ {
 			result[i] = e()
 		}
 	}
-	lazyApply := make([]F, (n+blockSize-1)/blockSize)
-	for i := 0; i < (n+blockSize-1)/blockSize; i++ {
+	lazyApply := make([]F, (n+block-1)/block)
+	for i := 0; i < (n+block-1)/block; i++ {
 		lazyApply[i] = id()
 	}
 
 	sd := &RangeSqrtDecomposition[S, F]{
-		n:         n,
-		blockSize: blockSize,
+		n:     n,
+		block: block,
 
 		data:      data,
 		result:    result,
 		lazyApply: lazyApply,
-		isLazy:    make([]bool, (n+blockSize-1)/blockSize),
+		isLazy:    make([]bool, (n+block-1)/block),
 
 		e:           e,
 		productFunc: productFunc,
@@ -118,9 +118,9 @@ func (sd *RangeSqrtDecomposition[S, F]) Product(l, r int) S {
 		return res
 	}
 
-	lCeil := (l + sd.blockSize - 1) / sd.blockSize
-	rFloor := r / sd.blockSize
-	if lMax := lCeil * sd.blockSize; l < lMax {
+	lCeil := (l + sd.block - 1) / sd.block
+	rFloor := r / sd.block
+	if lMax := lCeil * sd.block; l < lMax {
 		sd.evalLazy(lb)
 		for i := l; i < lMax; i++ {
 			res = sd.productFunc(res, sd.data[i])
@@ -133,7 +133,7 @@ func (sd *RangeSqrtDecomposition[S, F]) Product(l, r int) S {
 			res = sd.productFunc(res, sd.result[b])
 		}
 	}
-	if rMin := rFloor * sd.blockSize; rMin < r {
+	if rMin := rFloor * sd.block; rMin < r {
 		sd.evalLazy(rb)
 		for i := rMin; i < r; i++ {
 			res = sd.productFunc(res, sd.data[i])
@@ -160,9 +160,9 @@ func (sd *RangeSqrtDecomposition[S, F]) ApplyRange(l, r int, f F) {
 		return
 	}
 
-	lCeil := (l + sd.blockSize - 1) / sd.blockSize
-	rFloor := r / sd.blockSize
-	if lMax := lCeil * sd.blockSize; l < lMax {
+	lCeil := (l + sd.block - 1) / sd.block
+	rFloor := r / sd.block
+	if lMax := lCeil * sd.block; l < lMax {
 		sd.evalLazy(lb)
 		for i := l; i < lMax; i++ {
 			sd.data[i] = sd.mappingFunc(f, sd.data[i])
@@ -173,7 +173,7 @@ func (sd *RangeSqrtDecomposition[S, F]) ApplyRange(l, r int, f F) {
 		sd.lazyApply[b] = sd.compositionFunc(sd.lazyApply[b], f)
 		sd.isLazy[b] = true
 	}
-	if rMin := rFloor * sd.blockSize; rMin < r {
+	if rMin := rFloor * sd.block; rMin < r {
 		sd.evalLazy(rb)
 		for i := rMin; i < r; i++ {
 			sd.data[i] = sd.mappingFunc(f, sd.data[i])
@@ -183,15 +183,15 @@ func (sd *RangeSqrtDecomposition[S, F]) ApplyRange(l, r int, f F) {
 }
 
 func (sd *RangeSqrtDecomposition[S, F]) nowBlock(i int) int {
-	return i / sd.blockSize
+	return i / sd.block
 }
 
 func (sd *RangeSqrtDecomposition[S, F]) evalLazy(b int) {
 	if !sd.isLazy[b] {
 		return
 	}
-	l := b * sd.blockSize
-	r := min(l+sd.blockSize, sd.n)
+	l := b * sd.block
+	r := min(l+sd.block, sd.n)
 	f := sd.lazyApply[b]
 	for i := l; i < r; i++ {
 		sd.data[i] = sd.mappingFunc(f, sd.data[i])
@@ -205,8 +205,8 @@ func (sd *RangeSqrtDecomposition[S, F]) calcResult(b int) {
 	if sd.productFunc == nil {
 		return
 	}
-	l := b * sd.blockSize
-	r := min(l+sd.blockSize, sd.n)
+	l := b * sd.block
+	r := min(l+sd.block, sd.n)
 	sd.result[b] = sd.e()
 	for i := l; i < r; i++ {
 		sd.result[b] = sd.productFunc(sd.result[b], sd.data[i])
