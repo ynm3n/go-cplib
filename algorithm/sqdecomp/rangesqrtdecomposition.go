@@ -14,10 +14,10 @@ type RangeSqrtDecomposition[S, F any] struct {
 	block int // block len
 
 	data      []S
-	result    []S
-	modified  []bool
-	lazyApply []F
-	isLazy    []bool
+	cache     []S
+	isFresh   []bool // cacheが新鮮かどうか
+	lazy      []F
+	isWaiting []bool // 未評価lazyが待機しているかどうか
 
 	e       func() S // https://ja.wikipedia.org/wiki/単位元
 	product func(x, y S) S
@@ -60,16 +60,16 @@ func NewRangeSqrtDecompositionWith[S, F any](
 		mappingBlock = mapping
 	}
 
-	var result []S
+	var cache []S
 	if product != nil {
-		result = make([]S, (n+block-1)/block)
-		for i := 0; i < (n+block-1)/block; i++ {
-			result[i] = e()
+		cache = make([]S, (n+block-1)/block)
+		for i := range cache {
+			cache[i] = e()
 		}
 	}
-	lazyApply := make([]F, (n+block-1)/block)
-	for i := 0; i < (n+block-1)/block; i++ {
-		lazyApply[i] = id()
+	lazy := make([]F, (n+block-1)/block)
+	for i := range lazy {
+		lazy[i] = id()
 	}
 
 	sd := &RangeSqrtDecomposition[S, F]{
@@ -77,10 +77,10 @@ func NewRangeSqrtDecompositionWith[S, F any](
 		block: block,
 
 		data:      data,
-		result:    result,
-		modified:  make([]bool, len(result)),
-		lazyApply: lazyApply,
-		isLazy:    make([]bool, len(lazyApply)),
+		cache:     cache,
+		isFresh:   make([]bool, len(cache)),
+		lazy:      lazy,
+		isWaiting: make([]bool, len(lazy)),
 
 		e:       e,
 		product: product,
@@ -106,7 +106,7 @@ func (sd *RangeSqrtDecomposition[S, F]) Set(i int, x S) {
 	b := sd.nowBlock(i)
 	sd.evalLazy(b)
 	sd.data[i] = x
-	sd.flagModified(b)
+	sd.markAsStale(b)
 }
 
 func (sd *RangeSqrtDecomposition[S, F]) Product(l, r int) S {
@@ -129,14 +129,19 @@ func (sd *RangeSqrtDecomposition[S, F]) Product(l, r int) S {
 		}
 	}
 	for b := lCeil; b < rFloor; b++ {
-		if sd.modified[b] {
-			sd.calcResult(b)
-			sd.modified[b] = false
+		if !sd.isFresh[b] && sd.product != nil {
+			il := b * sd.block
+			ir := min(il+sd.block, sd.n)
+			sd.cache[b] = sd.e()
+			for i := il; i < ir; i++ {
+				sd.cache[b] = sd.product(sd.cache[b], sd.data[i])
+			}
+			sd.isFresh[b] = true
 		}
-		if sd.isLazy[b] {
-			res = sd.product(res, sd.mappingBlock(sd.lazyApply[b], sd.result[b]))
+		if sd.isWaiting[b] {
+			res = sd.product(res, sd.mappingBlock(sd.lazy[b], sd.cache[b]))
 		} else {
-			res = sd.product(res, sd.result[b])
+			res = sd.product(res, sd.cache[b])
 		}
 	}
 	if rMin := rFloor * sd.block; rMin < r {
@@ -152,7 +157,7 @@ func (sd *RangeSqrtDecomposition[S, F]) Apply(i int, f F) {
 	b := sd.nowBlock(i)
 	sd.evalLazy(b)
 	sd.data[i] = sd.mapping(f, sd.data[i])
-	sd.flagModified(b)
+	sd.markAsStale(b)
 }
 
 func (sd *RangeSqrtDecomposition[S, F]) ApplyRange(l, r int, f F) {
@@ -162,7 +167,7 @@ func (sd *RangeSqrtDecomposition[S, F]) ApplyRange(l, r int, f F) {
 		for i := l; i < r; i++ {
 			sd.data[i] = sd.mapping(f, sd.data[i])
 		}
-		sd.flagModified(lb)
+		sd.markAsStale(lb)
 		return
 	}
 
@@ -173,18 +178,18 @@ func (sd *RangeSqrtDecomposition[S, F]) ApplyRange(l, r int, f F) {
 		for i := l; i < lMax; i++ {
 			sd.data[i] = sd.mapping(f, sd.data[i])
 		}
-		sd.flagModified(lb)
+		sd.markAsStale(lb)
 	}
 	for b := lCeil; b < rFloor; b++ {
-		sd.lazyApply[b] = sd.composition(sd.lazyApply[b], f)
-		sd.isLazy[b] = true
+		sd.lazy[b] = sd.composition(sd.lazy[b], f)
+		sd.isWaiting[b] = true
 	}
 	if rMin := rFloor * sd.block; rMin < r {
 		sd.evalLazy(rb)
 		for i := rMin; i < r; i++ {
 			sd.data[i] = sd.mapping(f, sd.data[i])
 		}
-		sd.flagModified(rb)
+		sd.markAsStale(rb)
 	}
 }
 
@@ -193,35 +198,23 @@ func (sd *RangeSqrtDecomposition[S, F]) nowBlock(i int) int {
 }
 
 func (sd *RangeSqrtDecomposition[S, F]) evalLazy(b int) {
-	if !sd.isLazy[b] {
+	if !sd.isWaiting[b] {
 		return
 	}
 	l := b * sd.block
 	r := min(l+sd.block, sd.n)
-	f := sd.lazyApply[b]
+	f := sd.lazy[b]
 	for i := l; i < r; i++ {
 		sd.data[i] = sd.mapping(f, sd.data[i])
 	}
-	sd.isLazy[b] = false
-	sd.lazyApply[b] = sd.id()
-	sd.flagModified(b)
+	sd.isWaiting[b] = false
+	sd.lazy[b] = sd.id()
+	sd.markAsStale(b)
 }
 
-func (sd *RangeSqrtDecomposition[S, F]) calcResult(b int) {
+func (sd *RangeSqrtDecomposition[S, F]) markAsStale(b int) {
 	if sd.product == nil {
 		return
 	}
-	l := b * sd.block
-	r := min(l+sd.block, sd.n)
-	sd.result[b] = sd.e()
-	for i := l; i < r; i++ {
-		sd.result[b] = sd.product(sd.result[b], sd.data[i])
-	}
-}
-
-func (sd *RangeSqrtDecomposition[S, F]) flagModified(b int) {
-	if sd.product == nil {
-		return
-	}
-	sd.modified[b] = true
+	sd.isFresh[b] = false
 }
