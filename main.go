@@ -9,6 +9,9 @@ import (
 	"math"
 	"os"
 	"strconv"
+
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -58,18 +61,6 @@ func main() {
 	Solve(os.Stdin, os.Stdout)
 }
 
-type Output interface {
-	Print(v ...any)
-	Printf(format string, v ...any)
-	Println(v ...any)
-}
-
-// default: not buffered
-// バッファリングしたい場合は *bufio.Writer を渡す
-func NewOutput(w io.Writer, prefix string, flag int) Output {
-	return log.New(w, prefix, flag)
-}
-
 type Input interface {
 	Split(split bufio.SplitFunc)
 	Discard()
@@ -99,6 +90,91 @@ func NewInput(r io.Reader, bufSize int) Input {
 	sc.Buffer(make([]byte, bufSize), math.MaxInt)
 	sc.Split(bufio.ScanWords)
 	return &input{sc}
+}
+
+type Output interface {
+	Print(v ...any)
+	Printf(format string, v ...any)
+	Println(v ...any)
+}
+
+// default: not buffered
+// バッファリングしたい場合は *bufio.Writer を渡す
+func NewOutput(w io.Writer, prefix string, flag int) Output {
+	return log.New(w, prefix, flag)
+}
+
+// simple math functions for int
+func max(as ...int) int {
+	res := as[0]
+	for _, a := range as {
+		if res < a {
+			res = a
+		}
+	}
+	return res
+}
+func min(as ...int) int {
+	res := as[0]
+	for _, a := range as {
+		if res > a {
+			res = a
+		}
+	}
+	return res
+}
+func chMax(a *int, b int) {
+	*a = max(*a, b)
+}
+func chMin(a *int, b int) {
+	*a = min(*a, b)
+}
+func abs(a int) int {
+	if a < 0 {
+		return -a
+	}
+	return a
+}
+func pow(a, n int) int {
+	res := 1
+	b := a
+	for n > 0 {
+		if n&1 > 0 {
+			res *= b
+		}
+		n >>= 1
+		b *= b
+	}
+	return res
+}
+func sum(s ...int) int {
+	res := 0
+	for _, v := range s {
+		res += v
+	}
+	return res
+}
+
+// slice utility functions
+func fillSlice[T any](s []T, v T) {
+	for i := range s {
+		s[i] = v
+	}
+}
+func countSlice[T comparable](s []T, v T) int {
+	res := 0
+	for _, w := range s {
+		if w == v {
+			res++
+		}
+	}
+	return res
+}
+
+func init() {
+	// import を消さないために書いてある
+	_ = slices.Clone[[]struct{}]
+	_ = maps.Keys[map[struct{}]struct{}]
 }
 
 // Inputインターフェースの中身
