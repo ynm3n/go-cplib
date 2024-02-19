@@ -20,7 +20,7 @@ func genTestCase(tb testing.TB, w io.Writer) {
 
 func genCorrect(tb testing.TB, r io.Reader, w io.Writer) {
 	tb.Helper()
-	// rからテストケースを取得し、正答をwに書き込むプログラムを書く
+	// rからテストケースを取得し、wに正答を書き込むプログラムを書く
 }
 
 // 出力が正しいかどうか確認するためのテスト
