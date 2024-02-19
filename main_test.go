@@ -39,7 +39,7 @@ func TestSolve_Correct(t *testing.T) {
 
 		if d := gocmp.Diff(sAns.String(), cAns.String()); len(d) > 0 {
 			out(t, testcase)
-			t.Fatal(d)
+			t.Fatalf("\ntestcase:\n%vdiff:\n%v", testcase, d)
 		}
 	}
 }
