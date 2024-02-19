@@ -26,17 +26,19 @@ func genCorrect(tb testing.TB, r io.Reader, w io.Writer) {
 // 出力が正しいかどうか確認するためのテスト
 func TestSolve_Correct(t *testing.T) {
 	for range testCount {
-		sTestcase := new(bytes.Buffer)
-		cTestcase := new(bytes.Buffer)
-		mw := io.MultiWriter(sTestcase, cTestcase)
+		sBuf := new(bytes.Buffer)
+		cBuf := new(bytes.Buffer)
+		mw := io.MultiWriter(sBuf, cBuf)
 		genTestCase(t, mw)
+		testcase := sBuf.String()
 
 		sAns := new(bytes.Buffer)
-		Solve(sTestcase, sAns)
+		Solve(sBuf, sAns)
 		cAns := new(bytes.Buffer)
-		genCorrect(t, cTestcase, cAns)
+		genCorrect(t, cBuf, cAns)
 
 		if d := gocmp.Diff(sAns.String(), cAns.String()); len(d) > 0 {
+			out(t, testcase)
 			t.Fatal(d)
 		}
 	}
