@@ -1,19 +1,15 @@
 package segtree
 
-// 参考にさせていただいた記事:
-// https://maspypy.com/segment-tree-%e3%81%ae%e3%81%8a%e5%8b%89%e5%bc%b71
-// https://github.com/ktateish/go-competitive/blob/master/ac_segtree.go2
-// https://github.com/monkukui/ac-library-go/blob/master/segtree/segtree.go
-// https://atcoder.github.io/ac-library/master/document_ja/segtree.html
-type SegmentTree[T any] struct {
-	n         int            // 初期化時に渡したスライスの要素数
-	data      []T            // セグメントツリーの本体
-	operation func(a, b T) T // モノイド積(?)を計算する関数
-	unit      T              // 単位元
+type SegmentTree[T any] interface {
+	Len() int
+	Set(i int, val T)
+	Get(i int) T
+	Product(l, r int) T
+	ProductAll() T
 }
 
-func NewSegmentTree[T any](s []T, op func(a, b T) T, unit T) *SegmentTree[T] {
-	sg := &SegmentTree[T]{
+func NewSegmentTree[T any](s []T, op func(a, b T) T, unit T) SegmentTree[T] {
+	sg := &segmentTree[T]{
 		n:         len(s),
 		data:      make([]T, len(s)*2),
 		operation: op,
@@ -31,11 +27,23 @@ func NewSegmentTree[T any](s []T, op func(a, b T) T, unit T) *SegmentTree[T] {
 	return sg
 }
 
-func (sg *SegmentTree[T]) Len() int {
+// 参考にさせていただいた記事:
+// https://maspypy.com/segment-tree-%e3%81%ae%e3%81%8a%e5%8b%89%e5%bc%b71
+// https://github.com/ktateish/go-competitive/blob/master/ac_segtree.go2
+// https://github.com/monkukui/ac-library-go/blob/master/segtree/segtree.go
+// https://atcoder.github.io/ac-library/master/document_ja/segtree.html
+type segmentTree[T any] struct {
+	n         int            // 初期化時に渡したスライスの要素数
+	data      []T            // セグメントツリーの本体
+	operation func(a, b T) T // モノイド積(?)を計算する関数
+	unit      T              // 単位元
+}
+
+func (sg *segmentTree[T]) Len() int {
 	return sg.n
 }
 
-func (sg *SegmentTree[T]) Set(idx int, v T) {
+func (sg *segmentTree[T]) Set(idx int, v T) {
 	now := sg.n + idx
 	sg.data[now] = v
 	for now > 1 {
@@ -44,11 +52,11 @@ func (sg *SegmentTree[T]) Set(idx int, v T) {
 	}
 }
 
-func (sg *SegmentTree[T]) Get(idx int) T {
+func (sg *segmentTree[T]) Get(idx int) T {
 	return sg.data[sg.n+idx]
 }
 
-func (sg *SegmentTree[T]) Product(l, r int) T {
+func (sg *segmentTree[T]) Product(l, r int) T {
 	l += sg.n
 	r += sg.n
 	valL, valR := sg.unit, sg.unit
@@ -67,11 +75,11 @@ func (sg *SegmentTree[T]) Product(l, r int) T {
 	return sg.operation(valL, valR)
 }
 
-func (sg *SegmentTree[T]) ProductAll() T {
+func (sg *segmentTree[T]) ProductAll() T {
 	return sg.Product(0, sg.n)
 }
 
-func (sg *SegmentTree[T]) update(now int) {
+func (sg *segmentTree[T]) update(now int) {
 	child1, child2 := now*2, now*2+1
 	sg.data[now] = sg.operation(sg.data[child1], sg.data[child2])
 }
