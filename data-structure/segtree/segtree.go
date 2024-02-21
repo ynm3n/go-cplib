@@ -19,9 +19,6 @@ func NewSegmentTree[T any](n int, e func() T, op func(a, b T) T) SegmentTree[T] 
 		e:    e,
 		op:   op,
 	}
-	for i := sg.n - 1; i >= 1; i-- {
-		sg.update(i)
-	}
 	return sg
 }
 
