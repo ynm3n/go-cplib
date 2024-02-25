@@ -18,7 +18,7 @@ func NewPriorityQueue[T cmp.Ordered]() PriorityQueue[T] {
 	return pq
 }
 
-// lessは並んでる時にtrue、並んでない時にfalseを返すような関数
+// cmp.Less関数を参考にlessを実装する
 // 参考: https://pkg.go.dev/cmp@go1.22.0#Less
 func NewPriorityQueueFunc[T any](less func(a, b T) bool) PriorityQueue[T] {
 	pq := new(priorityQueue[T])
