@@ -31,9 +31,9 @@ func Solve(r io.Reader, w io.Writer) {
 	if bufferedOutput {
 		bw := bufio.NewWriter(w)
 		defer bw.Flush()
-		out = NewOutput(bw, "", 0)
+		out = NewOutput(bw)
 	} else {
-		out = NewOutput(w, "", 0)
+		out = NewOutput(w)
 	}
 	for i := 0; i < 1; i++ {
 		solve(in, out)
@@ -100,8 +100,8 @@ type Output interface {
 
 // default: not buffered
 // バッファリングしたい場合は *bufio.Writer を渡す
-func NewOutput(w io.Writer, prefix string, flag int) Output {
-	return log.New(w, prefix, flag)
+func NewOutput(w io.Writer) Output {
+	return &output{w}
 }
 
 // simple math functions for int
@@ -251,4 +251,15 @@ func (in *input) checkScan() error {
 		return io.EOF
 	}
 	return nil
+}
+
+type output struct{ io.Writer }
+
+func (o *output) Print(a ...any)                 { o.errPanic(fmt.Fprint(o.Writer, a...)) }
+func (o *output) Printf(format string, a ...any) { o.errPanic(fmt.Fprintf(o.Writer, format, a...)) }
+func (o *output) Println(a ...any)               { o.errPanic(fmt.Fprintln(o.Writer, a...)) }
+func (o *output) errPanic(_ int, err error) {
+	if err != nil {
+		log.Panicln(fmt.Errorf("output: %w", err))
+	}
 }
