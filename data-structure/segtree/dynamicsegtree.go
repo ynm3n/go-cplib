@@ -2,19 +2,15 @@ package segtree
 
 import "fmt"
 
-// ポインタを使う 必要な部分だけ作るやつ
-// 参考にさせていただいた記事:
-// https://kazuma8128.hatenablog.com/entry/2018/11/29/093827
-// https://lorent-kyopro.hatenablog.com/entry/2021/03/12/025644
-type DynamicSegmentTree[T any] struct {
-	l, r int
-	root *node[T]
-	e    func() T
-	op   func(a, b T) T
+type DynamicSegmentTree[T any] interface {
+	Set(i int, val T)
+	Get(i int) T
+	Product(l, r int) T
+	ProductAll() T
 }
 
-func NewDynamicSegmentTree[T any](l, r int, e func() T, op func(a, b T) T) *DynamicSegmentTree[T] {
-	return &DynamicSegmentTree[T]{
+func NewDynamicSegmentTree[T any](l, r int, e func() T, op func(a, b T) T) DynamicSegmentTree[T] {
+	return &dynamicSegmentTree[T]{
 		l:    l,
 		r:    r,
 		root: nil,
@@ -23,7 +19,7 @@ func NewDynamicSegmentTree[T any](l, r int, e func() T, op func(a, b T) T) *Dyna
 	}
 }
 
-func NewDynamicSegmentTreeWith[T any](s []T, e func() T, op func(a, b T) T) *DynamicSegmentTree[T] {
+func NewDynamicSegmentTreeWith[T any](s []T, e func() T, op func(a, b T) T) DynamicSegmentTree[T] {
 	sg := NewDynamicSegmentTree(0, len(s), e, op)
 	for i, val := range s {
 		sg.Set(i, val)
@@ -31,7 +27,18 @@ func NewDynamicSegmentTreeWith[T any](s []T, e func() T, op func(a, b T) T) *Dyn
 	return sg
 }
 
-func (sg *DynamicSegmentTree[T]) Set(i int, val T) {
+// ポインタを使う 必要な部分だけ作るやつ
+// 参考にさせていただいた記事:
+// https://kazuma8128.hatenablog.com/entry/2018/11/29/093827
+// https://lorent-kyopro.hatenablog.com/entry/2021/03/12/025644
+type dynamicSegmentTree[T any] struct {
+	l, r int
+	root *node[T]
+	e    func() T
+	op   func(a, b T) T
+}
+
+func (sg *dynamicSegmentTree[T]) Set(i int, val T) {
 	sg.checkInRange(i)
 	if sg.root == nil {
 		sg.root = newNode(i, val)
@@ -78,7 +85,7 @@ func (sg *DynamicSegmentTree[T]) Set(i int, val T) {
 	}
 }
 
-func (sg *DynamicSegmentTree[T]) Get(i int) T {
+func (sg *dynamicSegmentTree[T]) Get(i int) T {
 	sg.checkInRange(i)
 	for now := sg.root; now != nil; {
 		if i == now.i {
@@ -92,7 +99,7 @@ func (sg *DynamicSegmentTree[T]) Get(i int) T {
 	return sg.e()
 }
 
-func (sg *DynamicSegmentTree[T]) Product(l, r int) T {
+func (sg *dynamicSegmentTree[T]) Product(l, r int) T {
 	sg.checkInRangeLR(l, r)
 	if sg.root == nil || l == r {
 		return sg.e()
@@ -100,7 +107,7 @@ func (sg *DynamicSegmentTree[T]) Product(l, r int) T {
 	return sg.product(sg.root, l, r, sg.l, sg.r)
 }
 
-func (sg *DynamicSegmentTree[T]) product(n *node[T], argL, argR, l, r int) T {
+func (sg *dynamicSegmentTree[T]) product(n *node[T], argL, argR, l, r int) T {
 	if n == nil || r <= argL || argR <= l {
 		return sg.e()
 	}
@@ -115,29 +122,29 @@ func (sg *DynamicSegmentTree[T]) product(n *node[T], argL, argR, l, r int) T {
 	return res
 }
 
-func (sg *DynamicSegmentTree[T]) ProductAll() T {
+func (sg *dynamicSegmentTree[T]) ProductAll() T {
 	return sg.root.subVal
 }
 
-func (sg *DynamicSegmentTree[T]) update(n *node[T]) {
+func (sg *dynamicSegmentTree[T]) update(n *node[T]) {
 	n.subVal = sg.op(sg.subtreeVal(n.l), n.val)
 	n.subVal = sg.op(n.subVal, sg.subtreeVal(n.r))
 }
 
-func (sg *DynamicSegmentTree[T]) subtreeVal(n *node[T]) T {
+func (sg *dynamicSegmentTree[T]) subtreeVal(n *node[T]) T {
 	if n != nil {
 		return n.subVal
 	}
 	return sg.e()
 }
 
-func (sg *DynamicSegmentTree[T]) checkInRange(i int) {
+func (sg *dynamicSegmentTree[T]) checkInRange(i int) {
 	if i < sg.l || sg.r <= i {
 		panic(fmt.Errorf("DynamicSegmentTree: index out of range: l=%d, r=%d, i=%d", sg.l, sg.r, i))
 	}
 }
 
-func (sg *DynamicSegmentTree[T]) checkInRangeLR(argL, argR int) {
+func (sg *dynamicSegmentTree[T]) checkInRangeLR(argL, argR int) {
 	if argL < sg.l || sg.r < argR {
 		panic(fmt.Errorf("DynamicSegmentTree: index out of range: l=%d, r=%d, argL=%d, argR=%d", sg.l, sg.r, argL, argR))
 	}

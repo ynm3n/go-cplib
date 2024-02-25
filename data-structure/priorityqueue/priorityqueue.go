@@ -5,42 +5,46 @@ import (
 	"container/heap"
 )
 
-type PriorityQueue[T any] struct {
-	h *hp[T]
-}
-
-func New[T any](compare func(a, b T) int) *PriorityQueue[T] {
-	pq := new(PriorityQueue[T])
-	pq.h.s = make([]T, 0)
-	pq.h.compare = compare
-	return pq
+type PriorityQueue[T any] interface {
+	Len() int
+	Top() T
+	Enqueue(x T)
+	Dequeue() T
 }
 
 // 昇順
-func NewOrdered[T cmp.Ordered]() *PriorityQueue[T] {
-	pq := New(cmp.Compare[T])
+func NewPriorityQueue[T cmp.Ordered]() PriorityQueue[T] {
+	pq := NewPriorityQueueFunc(cmp.Less[T])
 	return pq
 }
 
-func (pq *PriorityQueue[T]) Enqueue(x T) { heap.Push(pq.h, x) }
-func (pq *PriorityQueue[T]) Dequeue() T  { return heap.Pop(pq.h).(T) }
-func (pq *PriorityQueue[T]) Top() T      { return pq.h.s[0] }
-func (pq *PriorityQueue[T]) Len() int    { return pq.h.Len() }
-
-type hp[T any] struct {
-	s       []T
-	compare func(a, b T) int
+// cmp.Less関数を参考にlessを実装する
+// 参考: https://pkg.go.dev/cmp@go1.22.0#Less
+func NewPriorityQueueFunc[T any](less func(a, b T) bool) PriorityQueue[T] {
+	pq := new(priorityQueue[T])
+	pq.s = make([]T, 0)
+	pq.less = less
+	return pq
 }
 
-func (h hp[T]) Len() int           { return len(h.s) }
-func (h hp[T]) Swap(i, j int)      { h.s[i], h.s[j] = h.s[j], h.s[i] }
-func (h hp[T]) Less(i, j int) bool { return h.compare(h.s[i], h.s[j]) < 0 }
-func (h *hp[T]) Push(x any) {
-	h.s = append(h.s, x.(T))
+type priorityQueue[T any] struct {
+	s    []T
+	less func(a, b T) bool
 }
-func (h *hp[T]) Pop() any {
-	n := len(h.s)
-	res := (h.s)[n-1]
-	h.s = (h.s)[:n-1]
+
+func (pq *priorityQueue[T]) Top() T      { return pq.s[0] }
+func (pq *priorityQueue[T]) Enqueue(x T) { heap.Push(pq, x) }
+func (pq *priorityQueue[T]) Dequeue() T  { return heap.Pop(pq).(T) }
+
+func (pq priorityQueue[T]) Len() int           { return len(pq.s) }
+func (pq priorityQueue[T]) Swap(i, j int)      { pq.s[i], pq.s[j] = pq.s[j], pq.s[i] }
+func (pq priorityQueue[T]) Less(i, j int) bool { return pq.less(pq.s[i], pq.s[j]) }
+func (pq *priorityQueue[T]) Push(x any) {
+	pq.s = append(pq.s, x.(T))
+}
+func (pq *priorityQueue[T]) Pop() any {
+	n := len(pq.s)
+	res := (pq.s)[n-1]
+	pq.s = (pq.s)[:n-1]
 	return res
 }
