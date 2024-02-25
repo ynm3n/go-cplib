@@ -5,27 +5,13 @@ import (
 	"slices"
 )
 
-// 区間を処理するために平方分割するやつ
-// 参考にさせていただいた記事:
-// https://kujira16.hateblo.jp/entry/2016/12/15/000000
-// https://betrue12.hateblo.jp/entry/2020/09/22/194541
-type RangeSqrtDecomposition[S, F any] struct {
-	n     int // data len
-	block int // block len
-
-	data      []S
-	cache     []S
-	isFresh   []bool // cacheが新鮮かどうか
-	lazy      []F
-	isWaiting []bool // 未評価lazyが待機しているかどうか
-
-	e       func() S // https://ja.wikipedia.org/wiki/単位元
-	product func(x, y S) S
-
-	id           func() F // https://ja.wikipedia.org/wiki/恒等写像
-	mapping      func(f F, x S) S
-	mappingBlock func(f F, x S) S
-	composition  func(f, g F) F
+type RangeSqrtDecomposition[S, F any] interface {
+	Len() int
+	Set(i int, x S)
+	Get(i int) S
+	Product(l, r int) S
+	Apply(i int, f F)
+	ApplyRange(l, r int, f F)
 }
 
 func NewRangeSqrtDecomposition[S, F any](
@@ -36,7 +22,7 @@ func NewRangeSqrtDecomposition[S, F any](
 	mapping func(f F, x S) S,
 	mappingBlock func(f F, x S) S,
 	composition func(f, g F) F,
-) *RangeSqrtDecomposition[S, F] {
+) RangeSqrtDecomposition[S, F] {
 	data := make([]S, n)
 	for i := range data {
 		data[i] = e()
@@ -52,7 +38,7 @@ func NewRangeSqrtDecompositionWith[S, F any](
 	mapping func(f F, x S) S,
 	mappingBlock func(f F, x S) S,
 	composition func(f, g F) F,
-) *RangeSqrtDecomposition[S, F] {
+) RangeSqrtDecomposition[S, F] {
 	data = slices.Clone(data)
 	n := len(data)
 	block := int(math.Round(math.Sqrt(float64(n))))
@@ -72,7 +58,7 @@ func NewRangeSqrtDecompositionWith[S, F any](
 		lazy[i] = id()
 	}
 
-	sd := &RangeSqrtDecomposition[S, F]{
+	sd := &rangeSqrtDecomposition[S, F]{
 		n:     n,
 		block: block,
 
@@ -93,23 +79,46 @@ func NewRangeSqrtDecompositionWith[S, F any](
 	return sd
 }
 
-func (sd *RangeSqrtDecomposition[S, F]) Len() int {
+// 区間を処理するために平方分割するやつ
+// 参考にさせていただいた記事:
+// https://kujira16.hateblo.jp/entry/2016/12/15/000000
+// https://betrue12.hateblo.jp/entry/2020/09/22/194541
+type rangeSqrtDecomposition[S, F any] struct {
+	n     int // data len
+	block int // block len
+
+	data      []S
+	cache     []S
+	isFresh   []bool // cacheが新鮮かどうか
+	lazy      []F
+	isWaiting []bool // 未評価lazyが待機しているかどうか
+
+	e       func() S // https://ja.wikipedia.org/wiki/単位元
+	product func(x, y S) S
+
+	id           func() F // https://ja.wikipedia.org/wiki/恒等写像
+	mapping      func(f F, x S) S
+	mappingBlock func(f F, x S) S
+	composition  func(f, g F) F
+}
+
+func (sd *rangeSqrtDecomposition[S, F]) Len() int {
 	return sd.n
 }
 
-func (sd *RangeSqrtDecomposition[S, F]) Get(i int) S {
-	sd.evalLazy(sd.nowBlock(i))
-	return sd.data[i]
-}
-
-func (sd *RangeSqrtDecomposition[S, F]) Set(i int, x S) {
+func (sd *rangeSqrtDecomposition[S, F]) Set(i int, x S) {
 	b := sd.nowBlock(i)
 	sd.evalLazy(b)
 	sd.data[i] = x
 	sd.markAsStale(b)
 }
 
-func (sd *RangeSqrtDecomposition[S, F]) Product(l, r int) S {
+func (sd *rangeSqrtDecomposition[S, F]) Get(i int) S {
+	sd.evalLazy(sd.nowBlock(i))
+	return sd.data[i]
+}
+
+func (sd *rangeSqrtDecomposition[S, F]) Product(l, r int) S {
 	lb, rb := sd.nowBlock(l), sd.nowBlock(r-1)
 	res := sd.e()
 	if lb == rb {
@@ -153,14 +162,14 @@ func (sd *RangeSqrtDecomposition[S, F]) Product(l, r int) S {
 	return res
 }
 
-func (sd *RangeSqrtDecomposition[S, F]) Apply(i int, f F) {
+func (sd *rangeSqrtDecomposition[S, F]) Apply(i int, f F) {
 	b := sd.nowBlock(i)
 	sd.evalLazy(b)
 	sd.data[i] = sd.mapping(f, sd.data[i])
 	sd.markAsStale(b)
 }
 
-func (sd *RangeSqrtDecomposition[S, F]) ApplyRange(l, r int, f F) {
+func (sd *rangeSqrtDecomposition[S, F]) ApplyRange(l, r int, f F) {
 	lb, rb := sd.nowBlock(l), sd.nowBlock(r-1)
 	if lb == rb {
 		sd.evalLazy(lb)
@@ -193,11 +202,11 @@ func (sd *RangeSqrtDecomposition[S, F]) ApplyRange(l, r int, f F) {
 	}
 }
 
-func (sd *RangeSqrtDecomposition[S, F]) nowBlock(i int) int {
+func (sd *rangeSqrtDecomposition[S, F]) nowBlock(i int) int {
 	return i / sd.block
 }
 
-func (sd *RangeSqrtDecomposition[S, F]) evalLazy(b int) {
+func (sd *rangeSqrtDecomposition[S, F]) evalLazy(b int) {
 	if !sd.isWaiting[b] {
 		return
 	}
@@ -212,7 +221,7 @@ func (sd *RangeSqrtDecomposition[S, F]) evalLazy(b int) {
 	sd.markAsStale(b)
 }
 
-func (sd *RangeSqrtDecomposition[S, F]) markAsStale(b int) {
+func (sd *rangeSqrtDecomposition[S, F]) markAsStale(b int) {
 	if sd.product == nil {
 		return
 	}
