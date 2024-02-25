@@ -9,23 +9,23 @@ type PriorityQueue[T any] struct {
 	h *hp[T]
 }
 
-func New[T any](compare func(a, b T) int) *PriorityQueue[T] {
+// 昇順
+func NewPriorityQueue[T cmp.Ordered]() *PriorityQueue[T] {
+	pq := NewPriorityQueueFunc(cmp.Compare[T])
+	return pq
+}
+
+func NewPriorityQueueFunc[T any](compare func(a, b T) int) *PriorityQueue[T] {
 	pq := new(PriorityQueue[T])
 	pq.h.s = make([]T, 0)
 	pq.h.compare = compare
 	return pq
 }
 
-// 昇順
-func NewOrdered[T cmp.Ordered]() *PriorityQueue[T] {
-	pq := New(cmp.Compare[T])
-	return pq
-}
-
+func (pq *PriorityQueue[T]) Len() int    { return pq.h.Len() }
+func (pq *PriorityQueue[T]) Top() T      { return pq.h.s[0] }
 func (pq *PriorityQueue[T]) Enqueue(x T) { heap.Push(pq.h, x) }
 func (pq *PriorityQueue[T]) Dequeue() T  { return heap.Pop(pq.h).(T) }
-func (pq *PriorityQueue[T]) Top() T      { return pq.h.s[0] }
-func (pq *PriorityQueue[T]) Len() int    { return pq.h.Len() }
 
 type hp[T any] struct {
 	s       []T
