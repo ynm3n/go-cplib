@@ -23,7 +23,7 @@ type Set[K any] interface {
 }
 
 func NewSet[K cmp.Ordered]() Set[K] {
-	return NewSetFunc[K](func(x, y K) int {
+	return NewSetFunc(func(x, y K) int {
 		if x < y {
 			return -1
 		} else if x > y {
@@ -236,8 +236,9 @@ func (tr *treap[K, V]) Len() int {
 }
 
 func (tr *treap[K, V]) Set(k K, v V) {
-	if tr.root == nil {
+	if tr.Len() == 0 {
 		tr.root = tr.newTreapNode(k, v, nil, nil, nil)
+		tr.len++
 		return
 	}
 	par, now := tr.find(k)
